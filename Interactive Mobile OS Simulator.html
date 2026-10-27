@@ -1,0 +1,800 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>NexusOS - Mobile UI Simulator</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    boxShadow: {
+                        'phone': '0 25px 50px -12px rgba(0, 0, 0, 0.4), 0 0 0 12px #1e293b, 0 0 0 15px #0f172a',
+                    },
+                    keyframes: {
+                        appOpen: {
+                            '0%': { transform: 'scale(0.2)', opacity: '0', borderRadius: '40px' },
+                            '100%': { transform: 'scale(1)', opacity: '1', borderRadius: '0px' },
+                        },
+                        appClose: {
+                            '0%': { transform: 'scale(1)', opacity: '1', borderRadius: '0px' },
+                            '100%': { transform: 'scale(0.2)', opacity: '0', borderRadius: '40px' },
+                        },
+                        pulseGlow: {
+                            '0%, 100%': { opacity: 0.8 },
+                            '50%': { opacity: 0.4 },
+                        }
+                    },
+                    animation: {
+                        'app-open': 'appOpen 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards',
+                        'app-close': 'appClose 0.3s cubic-bezier(0.7, 0, 0.84, 0) forwards',
+                        'pulse-slow': 'pulseGlow 3s ease-in-out infinite',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* Custom scrollbar hiding for clean OS look */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+
+        /* Glassmorphism backgrounds */
+        .glass {
+            background: rgba(255, 255, 255, 0.2);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.18);
+        }
+        .glass-dark {
+            background: rgba(15, 23, 42, 0.65);
+            backdrop-filter: blur(25px);
+            -webkit-backdrop-filter: blur(25px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        /* Dynamic Island animation */
+        .dynamic-island {
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        .dynamic-island.expanded {
+            width: 220px;
+            height: 38px;
+            border-radius: 20px;
+        }
+
+        /* Swipe handle feedback */
+        .gesture-bar {
+            touch-action: none;
+        }
+
+        /* Prevent unwanted highlighting */
+        * {
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
+        }
+    </style>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col items-center justify-center p-2 sm:p-6 font-sans overflow-hidden">
+
+    <!-- Top Info Desktop Bar -->
+    <header class="hidden md:flex items-center justify-between w-full max-w-4xl mb-4 text-slate-400 text-xs px-2">
+        <div class="flex items-center space-x-2">
+            <i class="fa-solid me-1 fa-mobile-screen text-indigo-400 text-base"></i>
+            <span class="font-semibold text-slate-200">NexusOS Simulator v2.5</span>
+        </div>
+        <div>
+            <span>Press app icons to launch mini-apps. Click notch or bottom bar to interact.</span>
+        </div>
+    </header>
+
+    <!-- Smartphone Wrapper Device Frame -->
+    <main class="relative w-full max-w-[390px] h-[812px] bg-black rounded-[50px] shadow-phone border-[4px] border-slate-700/50 flex flex-col overflow-hidden select-none transition-all duration-300">
+        
+        <!-- Physical Buttons (Decorative/Interactive) -->
+        <div class="absolute -left-[15px] top-28 w-[3px] h-10 bg-slate-700 rounded-l-sm cursor-pointer hover:bg-slate-500 transition" title="Volume Up" onclick="adjustVolume(10)"></div>
+        <div class="absolute -left-[15px] top-42 w-[3px] h-10 bg-slate-700 rounded-l-sm cursor-pointer hover:bg-slate-500 transition" title="Volume Down" onclick="adjustVolume(-10)"></div>
+        <div class="absolute -right-[15px] top-32 w-[3px] h-16 bg-slate-700 rounded-r-sm cursor-pointer hover:bg-slate-500 transition" title="Power Lock" onclick="togglePowerState()"></div>
+
+        <!-- Phone Screen Display Area -->
+        <div id="phoneScreen" class="relative w-full h-full bg-cover bg-center flex flex-col overflow-hidden transition-all duration-500" style="background-image: url('https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=1000&auto=format&fit=crop');">
+            
+            <!-- Dark Overlay for wallpapers -->
+            <div id="wallpaperOverlay" class="absolute inset-0 bg-black/20 pointer-events-none"></div>
+
+            <!-- Top Status Bar -->
+            <header class="relative z-50 flex items-center justify-between px-6 pt-3 pb-1 text-white text-xs font-semibold tracking-wide">
+                <!-- Clock -->
+                <div id="statusBarTime" class="w-12 text-center font-medium">09:41</div>
+
+                <!-- Dynamic Island / Notch Notch -->
+                <div id="dynamicIsland" class="dynamic-island cursor-pointer bg-black text-white px-3 py-1 rounded-full flex items-center justify-between space-x-2 text-[10px] shadow-lg border border-white/10 z-50" onclick="triggerIslandNotification()">
+                    <div id="islandLeft" class="flex items-center space-x-1">
+                        <div class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+                    </div>
+                    <div id="islandContent" class="text-xs truncate max-w-[100px] text-slate-300 font-normal">NexusOS</div>
+                    <div id="islandRight" class="flex items-center space-x-1">
+                        <i class="fa-solid fa-compact-disc text-indigo-400 text-[10px] animate-spin"></i>
+                    </div>
+                </div>
+
+                <!-- Status Icons -->
+                <div class="flex items-center space-x-2 text-[11px] text-slate-200">
+                    <i class="fa-solid fa-signal"></i>
+                    <i class="fa-solid fa-wifi"></i>
+                    <div class="flex items-center space-x-0.5">
+                        <span id="batteryPercentage" class="text-[10px]">88%</span>
+                        <i class="fa-solid fa-battery-three-quarters text-sm"></i>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Screen Off Mask (Power Lock) -->
+            <div id="powerOffScreen" class="absolute inset-0 bg-black z-50 flex flex-col items-center justify-center text-slate-500 opacity-0 pointer-events-none transition-opacity duration-300">
+                <i class="fa-solid fa-fingerprint text-4xl mb-3 text-slate-600 animate-pulse"></i>
+                <p class="text-xs tracking-widest uppercase">Click Power Button</p>
+            </div>
+
+            <!-- Main Home Screen Content -->
+            <div id="homeScreen" class="relative z-10 flex-1 flex flex-col justify-between p-4 pt-2 pb-6 overflow-y-auto no-scrollbar">
+                
+                <!-- Lockscreen/Homescreen Header Clock Widget -->
+                <div class="flex flex-col items-center mt-4 text-white drop-shadow-md">
+                    <h1 id="widgetTime" class="text-6xl font-extralight tracking-tight">09:41</h1>
+                    <p id="widgetDate" class="text-sm font-medium opacity-90 tracking-wide mt-0.5">Tuesday, October 27</p>
+                </div>
+
+                <!-- Weather/Quick Info Widget Card -->
+                <div onclick="openApp('weather')" class="glass rounded-3xl p-4 my-4 text-white flex items-center justify-between shadow-lg backdrop-blur-md hover:bg-white/30 transition cursor-pointer border border-white/20">
+                    <div class="flex flex-col">
+                        <span class="text-xs font-medium text-slate-200 uppercase tracking-wider">Sakarya, TR</span>
+                        <span class="text-2xl font-bold mt-0.5">22°C</span>
+                        <span class="text-xs text-slate-300">Mostly Sunny • H:24° L:16°</span>
+                    </div>
+                    <div class="text-3xl text-amber-300 drop-shadow">
+                        <i class="fa-solid fa-sun-cloud"></i>
+                    </div>
+                </div>
+
+                <!-- App Icons Grid (4x4 Matrix) -->
+                <div class="grid grid-cols-4 gap-4 px-1 my-auto">
+                    <!-- App: Camera -->
+                    <button onclick="openApp('camera')" class="flex flex-col items-center group focus:outline-none">
+                        <div class="w-14 h-14 bg-gradient-to-tr from-slate-700 to-slate-900 rounded-2xl flex items-center justify-center text-white text-2xl shadow-lg group-active:scale-90 transition-transform border border-white/10">
+                            <i class="fa-solid fa-camera"></i>
+                        </div>
+                        <span class="text-xs text-white font-medium mt-1.5 drop-shadow">Camera</span>
+                    </button>
+
+                    <!-- App: Gallery -->
+                    <button onclick="openApp('gallery')" class="flex flex-col items-center group focus:outline-none">
+                        <div class="w-14 h-14 bg-gradient-to-tr from-pink-500 to-rose-400 rounded-2xl flex items-center justify-center text-white text-2xl shadow-lg group-active:scale-90 transition-transform border border-white/10">
+                            <i class="fa-solid fa-images"></i>
+                        </div>
+                        <span class="text-xs text-white font-medium mt-1.5 drop-shadow">Gallery</span>
+                    </button>
+
+                    <!-- App: Weather -->
+                    <button onclick="openApp('weather')" class="flex flex-col items-center group focus:outline-none">
+                        <div class="w-14 h-14 bg-gradient-to-tr from-blue-400 to-indigo-500 rounded-2xl flex items-center justify-center text-white text-2xl shadow-lg group-active:scale-90 transition-transform border border-white/10">
+                            <i class="fa-solid fa-cloud-sun font-bold"></i>
+                        </div>
+                        <span class="text-xs text-white font-medium mt-1.5 drop-shadow">Weather</span>
+                    </button>
+
+                    <!-- App: Calculator -->
+                    <button onclick="openApp('calculator')" class="flex flex-col items-center group focus:outline-none">
+                        <div class="w-14 h-14 bg-gradient-to-tr from-amber-500 to-orange-400 rounded-2xl flex items-center justify-center text-white text-2xl shadow-lg group-active:scale-90 transition-transform border border-white/10">
+                            <i class="fa-solid fa-calculator"></i>
+                        </div>
+                        <span class="text-xs text-white font-medium mt-1.5 drop-shadow">Calculator</span>
+                    </button>
+
+                    <!-- App: Music -->
+                    <button onclick="openApp('music')" class="flex flex-col items-center group focus:outline-none">
+                        <div class="w-14 h-14 bg-gradient-to-tr from-red-500 to-rose-600 rounded-2xl flex items-center justify-center text-white text-2xl shadow-lg group-active:scale-90 transition-transform border border-white/10">
+                            <i class="fa-solid fa-music"></i>
+                        </div>
+                        <span class="text-xs text-white font-medium mt-1.5 drop-shadow">Music</span>
+                    </button>
+
+                    <!-- App: Notes -->
+                    <button onclick="openApp('notes')" class="flex flex-col items-center group focus:outline-none">
+                        <div class="w-14 h-14 bg-gradient-to-tr from-yellow-400 to-amber-500 rounded-2xl flex items-center justify-center text-white text-2xl shadow-lg group-active:scale-90 transition-transform border border-white/10">
+                            <i class="fa-solid fa-note-sticky"></i>
+                        </div>
+                        <span class="text-xs text-white font-medium mt-1.5 drop-shadow">Notes</span>
+                    </button>
+
+                    <!-- App: Clock -->
+                    <button onclick="openApp('clock')" class="flex flex-col items-center group focus:outline-none">
+                        <div class="w-14 h-14 bg-gradient-to-tr from-slate-800 to-slate-900 rounded-2xl flex items-center justify-center text-white text-2xl shadow-lg group-active:scale-90 transition-transform border border-white/10">
+                            <i class="fa-solid fa-clock"></i>
+                        </div>
+                        <span class="text-xs text-white font-medium mt-1.5 drop-shadow">Clock</span>
+                    </button>
+
+                    <!-- App: Settings -->
+                    <button onclick="openApp('settings')" class="flex flex-col items-center group focus:outline-none">
+                        <div class="w-14 h-14 bg-gradient-to-tr from-slate-500 to-slate-700 rounded-2xl flex items-center justify-center text-white text-2xl shadow-lg group-active:scale-90 transition-transform border border-white/10">
+                            <i class="fa-solid fa-gear"></i>
+                        </div>
+                        <span class="text-xs text-white font-medium mt-1.5 drop-shadow">Settings</span>
+                    </button>
+                </div>
+
+                <!-- Dock Area -->
+                <div class="glass rounded-3xl p-3 flex justify-around items-center mt-6 border border-white/20 backdrop-blur-xl">
+                    <!-- Phone App -->
+                    <button onclick="openApp('phone')" class="w-12 h-12 bg-emerald-500 rounded-2xl flex items-center justify-center text-white text-xl shadow-md active:scale-90 transition-transform">
+                        <i class="fa-solid fa-phone"></i>
+                    </button>
+                    <!-- Browser App -->
+                    <button onclick="openApp('browser')" class="w-12 h-12 bg-sky-500 rounded-2xl flex items-center justify-center text-white text-xl shadow-md active:scale-90 transition-transform">
+                        <i class="fa-solid fa-compass"></i>
+                    </button>
+                    <!-- Messages App -->
+                    <button onclick="openApp('messages')" class="w-12 h-12 bg-green-500 rounded-2xl flex items-center justify-center text-white text-xl shadow-md active:scale-90 transition-transform">
+                        <i class="fa-solid fa-message"></i>
+                    </button>
+                    <!-- Store App -->
+                    <button onclick="triggerToast('Nexus App Store coming soon!')" class="w-12 h-12 bg-blue-600 rounded-2xl flex items-center justify-center text-white text-xl shadow-md active:scale-90 transition-transform">
+                        <i class="fa-solid fa-bag-shopping"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- APPS WINDOW CONTAINER (MODALS) -->
+            <div id="appContainer" class="absolute inset-0 z-40 hidden flex-col bg-slate-900 text-slate-100 overflow-hidden">
+                <!-- App Header Bar -->
+                <div id="appHeader" class="flex items-center justify-between px-4 pt-10 pb-2 border-b border-slate-800 bg-slate-900/90 backdrop-blur-md">
+                    <button onclick="closeCurrentApp()" class="text-indigo-400 text-sm font-medium flex items-center space-x-1 active:opacity-60">
+                        <i class="fa-solid fa-chevron-left text-xs"></i>
+                        <span>Home</span>
+                    </button>
+                    <span id="appTitle" class="font-semibold text-sm capitalize">App Name</span>
+                    <div class="w-12"></div> <!-- Spacer for center alignment -->
+                </div>
+
+                <!-- App Body Content Frames -->
+                <div id="appContent" class="flex-1 overflow-y-auto relative no-scrollbar">
+                    
+                    <!-- CALCULATOR APP -->
+                    <div id="app-calculator" class="app-view hidden h-full flex flex-col justify-end p-4 bg-black text-white">
+                        <div class="text-right text-slate-400 text-xl font-light mb-1 h-8" id="calcHistory"></div>
+                        <div class="text-right text-5xl font-light mb-6 tracking-tight overflow-x-auto no-scrollbar" id="calcDisplay">0</div>
+                        <div class="grid grid-cols-4 gap-3">
+                            <button onclick="calcClear()" class="h-16 rounded-full bg-slate-400 text-black text-xl font-medium active:bg-slate-300">AC</button>
+                            <button onclick="calcToggleSign()" class="h-16 rounded-full bg-slate-400 text-black text-xl font-medium active:bg-slate-300">+/-</button>
+                            <button onclick="calcOp('%')" class="h-16 rounded-full bg-slate-400 text-black text-xl font-medium active:bg-slate-300">%</button>
+                            <button onclick="calcOp('/')" class="h-16 rounded-full bg-amber-500 text-white text-2xl font-medium active:bg-amber-400">÷</button>
+                            
+                            <button onclick="calcNum('7')" class="h-16 rounded-full bg-slate-800 text-white text-2xl font-medium active:bg-slate-700">7</button>
+                            <button onclick="calcNum('8')" class="h-16 rounded-full bg-slate-800 text-white text-2xl font-medium active:bg-slate-700">8</button>
+                            <button onclick="calcNum('9')" class="h-16 rounded-full bg-slate-800 text-white text-2xl font-medium active:bg-slate-700">9</button>
+                            <button onclick="calcOp('*')" class="h-16 rounded-full bg-amber-500 text-white text-2xl font-medium active:bg-amber-400">×</button>
+                            
+                            <button onclick="calcNum('4')" class="h-16 rounded-full bg-slate-800 text-white text-2xl font-medium active:bg-slate-700">4</button>
+                            <button onclick="calcNum('5')" class="h-16 rounded-full bg-slate-800 text-white text-2xl font-medium active:bg-slate-700">5</button>
+                            <button onclick="calcNum('6')" class="h-16 rounded-full bg-slate-800 text-white text-2xl font-medium active:bg-slate-700">6</button>
+                            <button onclick="calcOp('-')" class="h-16 rounded-full bg-amber-500 text-white text-2xl font-medium active:bg-amber-400">-</button>
+                            
+                            <button onclick="calcNum('1')" class="h-16 rounded-full bg-slate-800 text-white text-2xl font-medium active:bg-slate-700">1</button>
+                            <button onclick="calcNum('2')" class="h-16 rounded-full bg-slate-800 text-white text-2xl font-medium active:bg-slate-700">2</button>
+                            <button onclick="calcNum('3')" class="h-16 rounded-full bg-slate-800 text-white text-2xl font-medium active:bg-slate-700">3</button>
+                            <button onclick="calcOp('+')" class="h-16 rounded-full bg-amber-500 text-white text-2xl font-medium active:bg-amber-400">+</button>
+                            
+                            <button onclick="calcNum('0')" class="col-span-2 h-16 rounded-full bg-slate-800 text-white text-2xl font-medium pl-7 text-left active:bg-slate-700">0</button>
+                            <button onclick="calcNum('.')" class="h-16 rounded-full bg-slate-800 text-white text-2xl font-medium active:bg-slate-700">.</button>
+                            <button onclick="calcEquals()" class="h-16 rounded-full bg-amber-500 text-white text-2xl font-medium active:bg-amber-400">=</button>
+                        </div>
+                    </div>
+
+                    <!-- SETTINGS APP -->
+                    <div id="app-settings" class="app-view hidden p-4 space-y-4">
+                        <div class="bg-slate-800/60 rounded-2xl p-4 flex items-center space-x-3 border border-slate-700">
+                            <div class="w-12 h-12 bg-indigo-600 rounded-full flex items-center justify-center font-bold text-lg">N</div>
+                            <div>
+                                <h3 class="font-semibold text-white">Nexus User</h3>
+                                <p class="text-xs text-slate-400">Apple/Google Sync ID Active</p>
+                            </div>
+                        </div>
+
+                        <div class="bg-slate-800/40 rounded-2xl p-3 border border-slate-700/50 divide-y divide-slate-700/40 text-sm">
+                            <div class="py-3 flex justify-between items-center">
+                                <div class="flex items-center space-x-3">
+                                    <i class="fa-solid fa-moon text-indigo-400 w-5"></i>
+                                    <span>Dark Theme</span>
+                                </div>
+                                <label class="relative inline-flex items-center cursor-pointer">
+                                    <input type="checkbox" id="darkToggle" class="sr-only peer" checked onchange="toggleDarkOS()">
+                                    <div class="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                                </label>
+                            </div>
+                            <div class="py-3 flex justify-between items-center">
+                                <div class="flex items-center space-x-3">
+                                    <i class="fa-solid fa-wifi text-sky-400 w-5"></i>
+                                    <span>Wi-Fi Network</span>
+                                </div>
+                                <span class="text-xs text-slate-400">Connected (5G)</span>
+                            </div>
+                            <div class="py-3 flex justify-between items-center">
+                                <div class="flex items-center space-x-3">
+                                    <i class="fa-solid fa-bluetooth text-blue-500 w-5"></i>
+                                    <span>Bluetooth</span>
+                                </div>
+                                <span class="text-xs text-slate-400">On</span>
+                            </div>
+                        </div>
+
+                        <!-- Wallpaper Picker -->
+                        <div class="bg-slate-800/40 rounded-2xl p-3 border border-slate-700/50">
+                            <h4 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Change Wallpaper</h4>
+                            <div class="grid grid-cols-3 gap-2">
+                                <button onclick="changeWallpaper('https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=1000&auto=format&fit=crop')" class="h-20 rounded-lg bg-cover bg-center border-2 border-indigo-500" style="background-image: url('https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=200&auto=format&fit=crop')"></button>
+                                <button onclick="changeWallpaper('https://images.unsplash.com/photo-1507525428034-b723cf961d3e?q=80&w=1000&auto=format&fit=crop')" class="h-20 rounded-lg bg-cover bg-center border border-slate-700" style="background-image: url('https://images.unsplash.com/photo-1507525428034-b723cf961d3e?q=80&w=200&auto=format&fit=crop')"></button>
+                                <button onclick="changeWallpaper('https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=1000&auto=format&fit=crop')" class="h-20 rounded-lg bg-cover bg-center border border-slate-700" style="background-image: url('https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=200&auto=format&fit=crop')"></button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- GALLERY APP -->
+                    <div id="app-gallery" class="app-view hidden p-3">
+                        <div class="grid grid-cols-3 gap-2">
+                            <img src="https://images.unsplash.com/photo-1534447677768-be436bb09401?q=80&w=400&auto=format&fit=crop" class="w-full h-28 object-cover rounded-xl cursor-pointer hover:opacity-80 transition" onclick="previewImage(this.src)">
+                            <img src="https://images.unsplash.com/photo-1519681393784-d120267933ba?q=80&w=400&auto=format&fit=crop" class="w-full h-28 object-cover rounded-xl cursor-pointer hover:opacity-80 transition" onclick="previewImage(this.src)">
+                            <img src="https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?q=80&w=400&auto=format&fit=crop" class="w-full h-28 object-cover rounded-xl cursor-pointer hover:opacity-80 transition" onclick="previewImage(this.src)">
+                            <img src="https://images.unsplash.com/photo-1469474968028-56623f02e42e?q=80&w=400&auto=format&fit=crop" class="w-full h-28 object-cover rounded-xl cursor-pointer hover:opacity-80 transition" onclick="previewImage(this.src)">
+                            <img src="https://images.unsplash.com/photo-1501785888041-af3ef285b470?q=80&w=400&auto=format&fit=crop" class="w-full h-28 object-cover rounded-xl cursor-pointer hover:opacity-80 transition" onclick="previewImage(this.src)">
+                            <img src="https://images.unsplash.com/photo-1447752875215-b2761acb3c5d?q=80&w=400&auto=format&fit=crop" class="w-full h-28 object-cover rounded-xl cursor-pointer hover:opacity-80 transition" onclick="previewImage(this.src)">
+                        </div>
+                    </div>
+
+                    <!-- NOTES APP -->
+                    <div id="app-notes" class="app-view hidden p-4 flex flex-col h-full">
+                        <div class="flex justify-between items-center mb-3">
+                            <h2 class="text-xl font-bold">Quick Notes</h2>
+                            <button onclick="saveNote()" class="px-3 py-1 bg-amber-500 text-black font-semibold rounded-lg text-xs shadow hover:bg-amber-400">Save</button>
+                        </div>
+                        <textarea id="noteTextarea" placeholder="Type your note here..." class="w-full flex-1 bg-slate-800 text-slate-100 p-3 rounded-2xl border border-slate-700 focus:outline-none focus:border-amber-500 resize-none font-sans text-sm"></textarea>
+                    </div>
+
+                    <!-- WEATHER APP -->
+                    <div id="app-weather" class="app-view hidden p-5 bg-gradient-to-b from-sky-500 to-indigo-700 text-white min-h-full">
+                        <div class="text-center my-6">
+                            <h2 class="text-2xl font-bold">Sakarya</h2>
+                            <p class="text-6xl font-extralight my-2">22°</p>
+                            <p class="text-sm font-medium opacity-90">Mostly Sunny</p>
+                            <p class="text-xs opacity-75">H: 24° • L: 16°</p>
+                        </div>
+                        <div class="bg-white/10 backdrop-blur-md rounded-2xl p-4 space-y-3">
+                            <div class="flex justify-between text-xs border-b border-white/10 pb-2">
+                                <span>TODAY</span>
+                                <i class="fa-solid fa-sun text-amber-300"></i>
+                                <span>24° / 16°</span>
+                            </div>
+                            <div class="flex justify-between text-xs border-b border-white/10 pb-2">
+                                <span>WED</span>
+                                <i class="fa-solid fa-cloud-sun text-slate-200"></i>
+                                <span>21° / 14°</span>
+                            </div>
+                            <div class="flex justify-between text-xs border-b border-white/10 pb-2">
+                                <span>THU</span>
+                                <i class="fa-solid fa-cloud-showers-heavy text-blue-300"></i>
+                                <span>18° / 12°</span>
+                            </div>
+                            <div class="flex justify-between text-xs">
+                                <span>FRI</span>
+                                <i class="fa-solid fa-bolt text-yellow-400"></i>
+                                <span>17° / 11°</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- MUSIC APP -->
+                    <div id="app-music" class="app-view hidden p-6 flex flex-col items-center justify-between h-full bg-slate-950">
+                        <div class="w-56 h-56 rounded-2xl bg-gradient-to-tr from-purple-600 to-indigo-500 shadow-2xl flex items-center justify-center border border-white/10 my-4">
+                            <i class="fa-solid fa-music text-6xl text-white/80"></i>
+                        </div>
+                        <div class="text-center w-full">
+                            <h3 class="text-xl font-bold text-white">Midnight Drive</h3>
+                            <p class="text-sm text-slate-400">Synthesize • Cyberpunk Beats</p>
+                            <!-- Audio visualizer simulation -->
+                            <div class="flex justify-center items-end space-x-1 h-8 mt-4">
+                                <div class="w-1.5 bg-indigo-500 rounded-full h-full animate-bounce"></div>
+                                <div class="w-1.5 bg-indigo-400 rounded-full h-2/3 animate-pulse"></div>
+                                <div class="w-1.5 bg-purple-500 rounded-full h-4/5 animate-bounce"></div>
+                                <div class="w-1.5 bg-indigo-500 rounded-full h-1/2 animate-pulse"></div>
+                            </div>
+                        </div>
+                        <div class="w-full space-y-4">
+                            <div class="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                                <div class="bg-indigo-500 h-full w-1/3"></div>
+                            </div>
+                            <div class="flex items-center justify-around text-2xl text-slate-200">
+                                <i class="fa-solid fa-backward-step cursor-pointer hover:text-white"></i>
+                                <button onclick="togglePlayMusic(this)" class="w-14 h-14 bg-indigo-600 rounded-full flex items-center justify-center text-white shadow-lg active:scale-95">
+                                    <i class="fa-solid fa-play ml-1"></i>
+                                </button>
+                                <i class="fa-solid fa-forward-step cursor-pointer hover:text-white"></i>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- CAMERA APP -->
+                    <div id="app-camera" class="app-view hidden h-full bg-black flex flex-col justify-between p-4">
+                        <div class="relative flex-1 bg-slate-900 rounded-2xl overflow-hidden flex items-center justify-center">
+                            <video id="cameraStream" class="w-full h-full object-cover hidden" autoplay playsinline></video>
+                            <div id="cameraPlaceholder" class="text-center text-slate-500">
+                                <i class="fa-solid fa-camera-retro text-4xl mb-2"></i>
+                                <p class="text-xs">Camera Feed Simulation</p>
+                            </div>
+                        </div>
+                        <div class="flex justify-around items-center pt-4">
+                            <div class="w-10 h-10 rounded-full bg-slate-800 border border-slate-700"></div>
+                            <button onclick="takeSnapshot()" class="w-16 h-16 rounded-full border-4 border-white flex items-center justify-center active:scale-90 transition">
+                                <div class="w-12 h-12 bg-white rounded-full"></div>
+                            </button>
+                            <button onclick="toggleCameraStream()" class="text-white text-xl p-2"><i class="fa-solid fa-rotate"></i></button>
+                        </div>
+                    </div>
+
+                    <!-- BROWSER APP -->
+                    <div id="app-browser" class="app-view hidden flex flex-col h-full bg-slate-900">
+                        <div class="p-2 border-b border-slate-800 flex items-center space-x-2">
+                            <input type="text" value="https://nexus-search.internal" class="flex-1 bg-slate-800 text-xs text-slate-300 px-3 py-2 rounded-xl border border-slate-700 focus:outline-none">
+                            <button class="text-indigo-400 text-xs px-2"><i class="fa-solid fa-rotate-right"></i></button>
+                        </div>
+                        <div class="flex-1 p-6 flex flex-col items-center justify-center text-center">
+                            <div class="w-16 h-16 bg-sky-500/20 text-sky-400 rounded-3xl flex items-center justify-center text-3xl mb-3">
+                                <i class="fa-solid fa-globe"></i>
+                            </div>
+                            <h3 class="text-lg font-bold text-white">Nexus Web</h3>
+                            <p class="text-xs text-slate-400 max-w-xs mt-1">Simulated fast browser page rendering experience.</p>
+                        </div>
+                    </div>
+
+                    <!-- CLOCK / STOPWATCH APP -->
+                    <div id="app-clock" class="app-view hidden p-6 flex flex-col items-center justify-between h-full bg-black">
+                        <div class="text-center mt-6">
+                            <span class="text-xs font-semibold text-indigo-400 uppercase tracking-widest">Stopwatch</span>
+                            <h2 id="stopwatchDisplay" class="text-5xl font-mono font-light text-white my-4">00:00.00</h2>
+                        </div>
+                        <div class="flex space-x-6">
+                            <button onclick="resetStopwatch()" class="w-20 h-20 bg-slate-800 text-white rounded-full text-sm font-semibold active:opacity-70">Reset</button>
+                            <button id="btnStartStopwatch" onclick="toggleStopwatch()" class="w-20 h-20 bg-emerald-600 text-white rounded-full text-sm font-semibold active:opacity-70">Start</button>
+                        </div>
+                        <div class="w-full"></div>
+                    </div>
+
+                    <!-- PHONE APP -->
+                    <div id="app-phone" class="app-view hidden p-4 flex flex-col justify-end h-full bg-slate-950">
+                        <div id="phoneDialDisplay" class="text-center text-3xl font-light text-white mb-6 h-10 tracking-widest"></div>
+                        <div class="grid grid-cols-3 gap-4 mb-6 px-4">
+                            <button onclick="dialKey('1')" class="h-16 rounded-full bg-slate-800 text-white text-2xl font-light active:bg-slate-700">1</button>
+                            <button onclick="dialKey('2')" class="h-16 rounded-full bg-slate-800 text-white text-2xl font-light active:bg-slate-700">2</button>
+                            <button onclick="dialKey('3')" class="h-16 rounded-full bg-slate-800 text-white text-2xl font-light active:bg-slate-700">3</button>
+                            <button onclick="dialKey('4')" class="h-16 rounded-full bg-slate-800 text-white text-2xl font-light active:bg-slate-700">4</button>
+                            <button onclick="dialKey('5')" class="h-16 rounded-full bg-slate-800 text-white text-2xl font-light active:bg-slate-700">5</button>
+                            <button onclick="dialKey('6')" class="h-16 rounded-full bg-slate-800 text-white text-2xl font-light active:bg-slate-700">6</button>
+                            <button onclick="dialKey('7')" class="h-16 rounded-full bg-slate-800 text-white text-2xl font-light active:bg-slate-700">7</button>
+                            <button onclick="dialKey('8')" class="h-16 rounded-full bg-slate-800 text-white text-2xl font-light active:bg-slate-700">8</button>
+                            <button onclick="dialKey('9')" class="h-16 rounded-full bg-slate-800 text-white text-2xl font-light active:bg-slate-700">9</button>
+                            <button onclick="dialKey('*')" class="h-16 rounded-full bg-slate-800 text-white text-2xl font-light active:bg-slate-700">*</button>
+                            <button onclick="dialKey('0')" class="h-16 rounded-full bg-slate-800 text-white text-2xl font-light active:bg-slate-700">0</button>
+                            <button onclick="dialKey('#')" class="h-16 rounded-full bg-slate-800 text-white text-2xl font-light active:bg-slate-700">#</button>
+                        </div>
+                        <div class="flex justify-center mb-4">
+                            <button onclick="triggerToast('Calling...')" class="w-16 h-16 bg-emerald-500 rounded-full flex items-center justify-center text-white text-2xl shadow-lg active:scale-95">
+                                <i class="fa-solid fa-phone"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- MESSAGES APP -->
+                    <div id="app-messages" class="app-view hidden p-4 flex flex-col h-full bg-slate-900">
+                        <div class="space-y-3 flex-1 overflow-y-auto pr-1 no-scrollbar">
+                            <div class="bg-slate-800 p-3 rounded-2xl rounded-tl-none max-w-[80%] text-xs text-slate-200">
+                                Welcome to Nexus Mobile OS! Feel free to explore apps.
+                            </div>
+                            <div class="bg-indigo-600 p-3 rounded-2xl rounded-tr-none max-w-[80%] text-xs text-white ml-auto">
+                                Looks awesome! How do I close an app?
+                            </div>
+                            <div class="bg-slate-800 p-3 rounded-2xl rounded-tl-none max-w-[80%] text-xs text-slate-200">
+                                Just swipe up or tap on the bottom white navigation bar!
+                            </div>
+                        </div>
+                        <div class="pt-2 flex items-center space-x-2">
+                            <input type="text" placeholder="Text message..." class="flex-1 bg-slate-800 text-xs px-3 py-2.5 rounded-full border border-slate-700 focus:outline-none">
+                            <button class="w-9 h-9 bg-indigo-600 rounded-full flex items-center justify-center text-white text-sm"><i class="fa-solid fa-arrow-up"></i></button>
+                        </div>
+                    </div>
+
+                </div>
+
+                <!-- Bottom Gesture Bar Handler inside App Window -->
+                <div class="gesture-bar h-6 bg-slate-900 flex justify-center items-center cursor-pointer" onclick="closeCurrentApp()">
+                    <div class="w-32 h-1 bg-slate-400/60 rounded-full"></div>
+                </div>
+            </div>
+
+            <!-- Toast Notification Container -->
+            <div id="toast" class="absolute bottom-16 left-1/2 transform -translate-x-1/2 bg-slate-800/90 text-white text-xs px-4 py-2 rounded-full border border-slate-700 shadow-2xl opacity-0 pointer-events-none transition-opacity duration-300 z-50">
+                Notification Msg
+            </div>
+
+            <!-- Home Screen Bottom Swipe Gesture Bar -->
+            <div class="relative z-30 h-4 flex justify-center items-center cursor-pointer" onclick="triggerIslandNotification()">
+                <div class="w-32 h-1 bg-white/50 rounded-full"></div>
+            </div>
+
+        </div>
+    </main>
+
+    <!-- JavaScript OS Logic -->
+    <script>
+        // System Clock Updates
+        function updateClock() {
+            const now = new Date();
+            let hours = now.getHours();
+            let minutes = now.getMinutes();
+            hours = hours < 10 ? '0' + hours : hours;
+            minutes = minutes < 10 ? '0' + minutes : minutes;
+            const timeStr = `${hours}:${minutes}`;
+
+            document.getElementById('statusBarTime').innerText = timeStr;
+            document.getElementById('widgetTime').innerText = timeStr;
+
+            const options = { weekday: 'long', month: 'long', day: 'numeric' };
+            document.getElementById('widgetDate').innerText = now.toLocaleDateString('en-US', options);
+        }
+        setInterval(updateClock, 1000);
+        updateClock();
+
+        // App Manager State
+        let currentOpenApp = null;
+
+        function openApp(appId) {
+            const appContainer = document.getElementById('appContainer');
+            const appViews = document.querySelectorAll('.app-view');
+            const titleElement = document.getElementById('appTitle');
+
+            // Hide all sub views
+            appViews.forEach(view => view.classList.add('hidden'));
+
+            // Show selected app view
+            const targetApp = document.getElementById(`app-${appId}`);
+            if (targetApp) {
+                targetApp.classList.remove('hidden');
+                titleElement.innerText = appId;
+                
+                appContainer.classList.remove('hidden');
+                appContainer.classList.remove('animate-app-close');
+                appContainer.classList.add('flex', 'animate-app-open');
+                
+                currentOpenApp = appId;
+            }
+        }
+
+        function closeCurrentApp() {
+            const appContainer = document.getElementById('appContainer');
+            if (!appContainer.classList.contains('hidden')) {
+                appContainer.classList.remove('animate-app-open');
+                appContainer.classList.add('animate-app-close');
+                
+                setTimeout(() => {
+                    appContainer.classList.add('hidden');
+                    appContainer.classList.remove('flex');
+                    currentOpenApp = null;
+                }, 280);
+            }
+        }
+
+        // Calculator App Logic
+        let calcVal = '0';
+        function updateCalcDisplay() {
+            document.getElementById('calcDisplay').innerText = calcVal;
+        }
+        function calcNum(num) {
+            if (calcVal === '0') calcVal = num;
+            else calcVal += num;
+            updateCalcDisplay();
+        }
+        function calcClear() {
+            calcVal = '0';
+            document.getElementById('calcHistory').innerText = '';
+            updateCalcDisplay();
+        }
+        function calcOp(op) {
+            calcVal += ' ' + op + ' ';
+            updateCalcDisplay();
+        }
+        function calcEquals() {
+            try {
+                document.getElementById('calcHistory').innerText = calcVal;
+                calcVal = eval(calcVal.replace(/×/g, '*').replace(/÷/g, '/')).toString();
+            } catch (e) {
+                calcVal = 'Error';
+            }
+            updateCalcDisplay();
+        }
+        function calcToggleSign() {
+            if (calcVal !== '0') {
+                calcVal = calcVal.startsWith('-') ? calcVal.slice(1) : '-' + calcVal;
+                updateCalcDisplay();
+            }
+        }
+
+        // Settings Logic
+        function toggleDarkOS() {
+            const isDark = document.getElementById('darkToggle').checked;
+            const phoneScreen = document.getElementById('phoneScreen');
+            if (isDark) {
+                phoneScreen.classList.add('dark');
+            } else {
+                phoneScreen.classList.remove('dark');
+            }
+        }
+
+        function changeWallpaper(url) {
+            document.getElementById('phoneScreen').style.backgroundImage = `url('${url}')`;
+            triggerToast('Wallpaper updated!');
+        }
+
+        // Notes Logic
+        function saveNote() {
+            const txt = document.getElementById('noteTextarea').value;
+            localStorage.setItem('nexus_note', txt);
+            triggerToast('Note Saved');
+        }
+        // Load note on init
+        document.getElementById('noteTextarea').value = localStorage.getItem('nexus_note') || '';
+
+        // Dynamic Island Notification Trigger
+        function triggerIslandNotification() {
+            const island = document.getElementById('dynamicIsland');
+            const islandContent = document.getElementById('islandContent');
+            
+            island.classList.add('expanded');
+            islandContent.innerText = "Notification Active";
+
+            setTimeout(() => {
+                island.classList.remove('expanded');
+                islandContent.innerText = "NexusOS";
+            }, 2500);
+        }
+
+        // Toast Notification System
+        function triggerToast(msg) {
+            const toast = document.getElementById('toast');
+            toast.innerText = msg;
+            toast.classList.remove('opacity-0');
+            toast.classList.add('opacity-100');
+            setTimeout(() => {
+                toast.classList.remove('opacity-100');
+                toast.classList.add('opacity-0');
+            }, 2000);
+        }
+
+        // Phone Lock/Power Toggle
+        let isPowerOn = true;
+        function togglePowerState() {
+            const powerScreen = document.getElementById('powerOffScreen');
+            if (isPowerOn) {
+                powerScreen.classList.remove('opacity-0', 'pointer-events-none');
+                powerScreen.classList.add('opacity-100');
+                isPowerOn = false;
+            } else {
+                powerScreen.classList.remove('opacity-100');
+                powerScreen.classList.add('opacity-0', 'pointer-events-none');
+                isPowerOn = true;
+            }
+        }
+
+        // Music Player Toggle
+        let isPlaying = false;
+        function togglePlayMusic(btn) {
+            const icon = btn.querySelector('i');
+            if (!isPlaying) {
+                icon.classList.remove('fa-play');
+                icon.classList.add('fa-pause');
+                isPlaying = true;
+                triggerToast('Playing Music');
+            } else {
+                icon.classList.remove('fa-pause');
+                icon.classList.add('fa-play');
+                isPlaying = false;
+            }
+        }
+
+        // Stopwatch Logic
+        let stopwatchTimer = null;
+        let stopwatchSeconds = 0;
+        function toggleStopwatch() {
+            const btn = document.getElementById('btnStartStopwatch');
+            if (stopwatchTimer) {
+                clearInterval(stopwatchTimer);
+                stopwatchTimer = null;
+                btn.innerText = 'Start';
+                btn.classList.replace('bg-rose-600', 'bg-emerald-600');
+            } else {
+                stopwatchTimer = setInterval(() => {
+                    stopwatchSeconds += 10;
+                    let ms = Math.floor((stopwatchSeconds % 1000) / 10);
+                    let sec = Math.floor((stopwatchSeconds / 1000) % 60);
+                    let min = Math.floor((stopwatchSeconds / (1000 * 60)) % 60);
+                    document.getElementById('stopwatchDisplay').innerText = 
+                        `${min < 10 ? '0'+min : min}:${sec < 10 ? '0'+sec : sec}.${ms < 10 ? '0'+ms : ms}`;
+                }, 10);
+                btn.innerText = 'Stop';
+                btn.classList.replace('bg-emerald-600', 'bg-rose-600');
+            }
+        }
+        function resetStopwatch() {
+            if (stopwatchTimer) clearInterval(stopwatchTimer);
+            stopwatchTimer = null;
+            stopwatchSeconds = 0;
+            document.getElementById('stopwatchDisplay').innerText = "00:00.00";
+            document.getElementById('btnStartStopwatch').innerText = 'Start';
+            document.getElementById('btnStartStopwatch').classList.replace('bg-rose-600', 'bg-emerald-600');
+        }
+
+        // Phone Dialer Keypad
+        function dialKey(key) {
+            const display = document.getElementById('phoneDialDisplay');
+            display.innerText += key;
+        }
+
+        // Gallery Image Modal Preview
+        function previewImage(src) {
+            triggerToast('Image selected');
+        }
+
+        // Camera Feed simulation
+        let mediaStream = null;
+        async function toggleCameraStream() {
+            const video = document.getElementById('cameraStream');
+            const placeholder = document.getElementById('cameraPlaceholder');
+            if (!mediaStream) {
+                try {
+                    mediaStream = await navigator.mediaDevices.getUserMedia({ video: true });
+                    video.srcObject = mediaStream;
+                    video.classList.remove('hidden');
+                    placeholder.classList.add('hidden');
+                } catch (e) {
+                    triggerToast('Camera access denied/unavailable');
+                }
+            } else {
+                mediaStream.getTracks().forEach(track => track.stop());
+                mediaStream = null;
+                video.classList.add('hidden');
+                placeholder.classList.remove('hidden');
+            }
+        }
+
+        function takeSnapshot() {
+            triggerToast('Photo captured!');
+        }
+
+        // Volume control helper
+        function adjustVolume(amount) {
+            triggerToast(`Volume adjusted`);
+        }
+    </script>
+</body>
+</html>
